@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Not a hot dog!</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+var config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 300 },
+            debug: false
+        }
+    },
+    scene: {
+        preload: preload,
+        create: create,
+        update: update
+    }
+};
+
+let time = 0;
+let player;
+let stars;
+let bombs;
+let pieces1;
+let pieces2;
+let platforms;
+let cursors;
+let gameOver = false;
+let startBomb = true;
+let background;
+let x = 225; // velocity of conveyor belt
+let y = -225;
+let newBombY;
+let bomberX = 50;
+let moreDogs = false;
+let interv1;
+let endscreen1;
+let endScreen2;
+let showEndScreen = true;
+let moreDogsYIncrement = 5;
+
+
+var game = new Phaser.Game(config);
+
+function preload ()
+{
+    this.load.image('endScreen2','assets/win_floor_factory.png');
+    this.load.image('sky', 'assets/INAHoDo_factory_background.png');
+    this.load.spritesheet('ground', 'assets/INAHoDo_conveyor_belt.png', { frameWidth: 400, frameHeight: 193 });
+    this.load.image('star', 'assets/INAHoDo_hotdog_whole.png');
+    this.load.image('star_part1', 'assets/INAHoDo_hotdog_piece1.png');
+    this.load.image('star_part2', 'assets/INAHoDo_hotdog_piece2.png');
+    this.load.image('bomb', 'assets/INAHoDo_cutter copy.png');
+    this.load.spritesheet('dude', 'assets/INAHoDo_penis.png', { frameWidth: 100, frameHeight: 113 });
+}
+
+function create ()
+{
+    background = this.add.image(400, 300, 'sky');
+
+    platforms = this.physics.add.staticGroup();
+
+    platforms.create(500, 500, 'ground').setScale(2,.2).refreshBody();
+    this.anims.create({
+        key: 'stand',
+        frames: this.anims.generateFrameNumbers('ground', { start: 0, end: 4 }),
+        frameRate: 10,
+        repeat: 1
+    });
+
+    player = this.physics.add.sprite(700, 400, 'dude');
+
+    player.setBounce(0.2);
+    player.setCollideWorldBounds(true);
+
+    this.anims.create({
+        key: 'left',
+        frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 1 }),
+        frameRate: 10,
+        repeat: -1
+    });
+
+    this.anims.create({
+        key: 'turn',
+        frames: [ { key: 'dude', frame: 2 } ],
+        frameRate: 20
+    });
+
+    this.anims.create({
+        key: 'right',
+        frames: this.anims.generateFrameNumbers('dude', { start: 3, end: 4 }),
+        frameRate: 10,
+        repeat: -1
+    });
+
+    cursors = this.input.keyboard.createCursorKeys();
+
+    stars = this.physics.add.group({
+        key: 'star',
+        repeat: 12,
+        setXY: { x: -300, y: 0-moreDogsYIncrement, stepX: 50 }
+    });
+
+    stars.children.iterate(function (child) {
+
+        child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+
+    });
+
+    bombs = this.physics.add.group();
+
+    this.physics.add.collider(player, platforms);
+    this.physics.add.collider(stars, platforms);
+    this.physics.add.collider(bombs, platforms);
+
+    this.physics.add.collider(player, bombs, hitBomb, null, this);
+    this.physics.add.collider(stars, bombs, sliceHotDog, null, this);
+}
+
+function update (){
+    this.time.addEvent({ delay: 10000, callback: moreDogsPlease, callbackScope: this, loop: true });
+    if (gameOver)
+    {
+
+        return;
+    } else {
+
+        if(player.y> 500){
+            if (showEndScreen){
+                endscreen1 = this.add.image(450, 300, 'endScreen2');
+                this.add.text(350, 400, 'YOU escaped!', { fontSize: '32px', fill: '#000' });
+                this.add.text(350, 450, 'You\'re not a hot dog!', { fontSize: '32px', fill: '#000' });
+                showEndScreen = false;
+            }
+            return;
+        }
+
+    if (cursors.left.isDown)
+    {
+        player.setVelocityX(x-360);
+
+        player.anims.play('left', true);
+    }
+    else if (cursors.right.isDown)
+    {
+        player.setVelocityX(x+360);
+
+        player.anims.play('right', true);
+    }
+    else
+    {
+        player.setVelocityX(x);
+
+        player.anims.play('turn');
+    }
+
+    if (cursors.up.isDown && player.body.touching.down)
+    {
+        player.setVelocityY(x-230);
+    }
+    stars.setVelocityX(x)
+
+    if (pieces1){
+            pieces1.setVelocityX(x)
+    }
+    if (pieces2){
+            pieces2.setVelocityX(x)
+    }
+
+    if (bombs) {
+        bombs.children.iterate(function (child) {
+
+            if (child.y > 350) {
+                y = -300
+            } else if (child.y < 100){
+                y = 300
+            }
+            if (child.x > 700) {
+                bomberX = -300
+            } else if (child.x < 51){
+                bomberX = 300
+            }
+
+            child.setVelocityX(bomberX)
+            child.setVelocityY(y)
+        });
+    }
+    if (startBomb){
+        var bomb = bombs.create(0, 16, 'bomb');
+        bomb.setCollideWorldBounds(true);
+        bomb.setVelocity(700, 300);
+        bomb.allowGravity = false;
+        startBomb = false;
+        }
+}
+}
+
+
+function hitBomb (player, bomb)
+{
+
+    background.setTint(0xff0000);
+
+    player.anims.play('turn');
+
+    gameOver = true;
+}
+
+function sliceHotDog (star, bomb)
+{
+            moreDogsPlease();
+
+
+
+    pieces1 = this.physics.add.group(
+        {
+        key: 'star_part1',
+        repeat: 1,
+        setXY: { x: bomb.x+20, y: bomb.y, stepX: 70 }
+    },
+);
+pieces2 = this.physics.add.group(
+    {
+    key: 'star_part2',
+    repeat: 1,
+    setXY: { x: bomb.x-20, y: bomb.y, stepX: 70 }
+},
+);
+    star.disableBody(true, true);
+    console.log(stars.children.entries.length)
+    stars.children.entries.pop(stars.children.entries.indexOf(star))
+
+    this.physics.add.collider(pieces1, platforms);
+    this.physics.add.collider(pieces2, platforms);
+
+    if (moreDogs && stars.children.entries.length < 100)
+    {
+        stars.children.iterate(function (child) {
+            stars.create(0, -200-moreDogsYIncrement, 'star');
+            child.enableBody(true, Phaser.Math.Between(0, 700), 15, true, true);
+
+        });
+        moreDogsYIncrement+= 20
+        moreDogs = false;
+    }
+}
+
+function moreDogsPlease(){
+    moreDogs = true;
+}
+
+</script>
+
+</body>
+</html>
